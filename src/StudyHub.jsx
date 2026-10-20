@@ -33,7 +33,7 @@ export default function StudyHub({db,member,session}){
   }catch(e){fail(e)}finally{setBusy(false)}
  }
  async function viewFile(item){const {data,error}=await db.storage.from('study-materials').createSignedUrl(item.storage_path,60);if(error)return fail(error);window.open(data.signedUrl,'_blank','noopener,noreferrer')}
- async function removeMaterial(item){if(!window.confirm('Delete this material?'))return;const {error}=await db.from('study_materials').delete().eq('id',item.id);if(error)return fail(error);if(item.storage_path){const {error:storageError}=await db.storage.from('study-materials').remove([item.storage_path]);if(storageError)return fail(storageError)}await refresh()}
+ async function removeMaterial(item){if(!window.confirm('Delete this material?'))return;if(item.storage_path){const {error:storageError}=await db.storage.from('study-materials').remove([item.storage_path]);if(storageError)return fail(storageError)}const {error}=await db.from('study_materials').delete().eq('id',item.id);if(error)return fail(error);await refresh()}
  const visible=materials.filter(m=>m.class_id===selected&&(!folder||m.folder_id===folder));
  return <section className="study-hub">
   <article><h2>📚 Study Hub</h2><p className="muted">Organize notes, screenshots and worksheets by class. AI guides and quizzes are coming next.</p>
