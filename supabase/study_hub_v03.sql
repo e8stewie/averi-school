@@ -1,4 +1,5 @@
--- Study Hub v0.3: run in Supabase SQL Editor before testing this branch.
+-- Study Hub v0.3: reviewed migration. Apply once through Supabase migrations after backup.
+-- Existing tables are expected to be absent; do not reapply blindly.
 create table if not exists public.study_classes (
  id uuid primary key default gen_random_uuid(),
  family_id uuid not null references public.families(id) on delete cascade,
@@ -13,6 +14,7 @@ create table if not exists public.study_folders (
  name text not null check (length(trim(name)) between 1 and 100),
  created_at timestamptz not null default now(),
  unique(id,class_id),
+ unique(id,class_id,family_id),
  foreign key (class_id) references public.study_classes(id)
 );
 create table if not exists public.study_materials (
@@ -27,12 +29,15 @@ create table if not exists public.study_materials (
  storage_path text unique,
  mime_type text,
  created_at timestamptz not null default now(),
- foreign key (folder_id,class_id) references public.study_folders(id,class_id) on delete cascade,
+ foreign key (folder_id,class_id,family_id) references public.study_folders(id,class_id,family_id) on delete set null (folder_id),
  check ((kind='note' and storage_path is null) or (kind='file' and storage_path is not null))
 );
+create unique index if not exists study_classes_id_family on public.study_classes(id,family_id);
 create index if not exists study_classes_family on public.study_classes(family_id);
 create index if not exists study_folders_class on public.study_folders(class_id);
 create index if not exists study_materials_class on public.study_materials(class_id);
+alter table public.study_folders add constraint study_folders_class_family_fk foreign key (class_id,family_id) references public.study_classes(id,family_id) on delete cascade;
+alter table public.study_materials add constraint study_materials_class_family_fk foreign key (class_id,family_id) references public.study_classes(id,family_id) on delete cascade;
 alter table public.study_classes enable row level security;
 alter table public.study_folders enable row level security;
 alter table public.study_materials enable row level security;
@@ -57,7 +62,7 @@ on conflict(id) do nothing;
 -- Path format: family_id/uploader_user_id/random-file-name. All enrolled family members can access.
 create policy "study file read" on storage.objects for select to authenticated using (
  bucket_id='study-materials' and (storage.foldername(name))[1]=(select public.my_family_id())::text
- and exists(select 1 from public.study_materials m where m.storage_path=storage.objects.name and m.family_id=(select public.my_family_id()) and m.student_id::text=(storage.foldername(name))[2])
+ and ((storage.foldername(name))[2]=(select auth.uid())::text or exists(select 1 from public.study_materials m where m.storage_path=storage.objects.name and m.family_id=(select public.my_family_id()) and m.student_id::text=(storage.foldername(name))[2]))
 );
 create policy "study file upload" on storage.objects for insert to authenticated with check (
  bucket_id='study-materials' and (select public.my_role()) in ('admin','parent','student')
@@ -68,5 +73,5 @@ create policy "study file upload" on storage.objects for insert to authenticated
 create policy "study file delete" on storage.objects for delete to authenticated using (
  bucket_id='study-materials' and (select public.my_role()) in ('admin','parent','student')
  and (storage.foldername(name))[1]=(select public.my_family_id())::text
- and exists(select 1 from public.study_materials m where m.storage_path=storage.objects.name and m.family_id=(select public.my_family_id()))
+ and ((storage.foldername(name))[2]=(select auth.uid())::text or exists(select 1 from public.study_materials m where m.storage_path=storage.objects.name and m.family_id=(select public.my_family_id())))
 );
