@@ -24,7 +24,7 @@ create table if not exists public.study_materials (
  title text not null check(length(trim(title)) between 1 and 200),
  kind text not null check(kind in ('note','file')),
  body text not null default '',
- storage_path text,
+ storage_path text unique,
  mime_type text,
  created_at timestamptz not null default now(),
  foreign key (folder_id,class_id) references public.study_folders(id,class_id) on delete cascade,
@@ -37,6 +37,7 @@ alter table public.study_classes enable row level security;
 alter table public.study_folders enable row level security;
 alter table public.study_materials enable row level security;
 -- All enrolled family members (admin, parent, student) can manage shared Study Hub materials.
+-- IMPORTANT: test with real authenticated sessions before production use.
 -- student_id records the creating user (historical column name); it does not limit edit rights.
 create policy "study classes read" on public.study_classes for select to authenticated using (family_id=(select public.my_family_id()));
 create policy "study classes insert" on public.study_classes for insert to authenticated with check (family_id=(select public.my_family_id()) and student_id=(select auth.uid()) and (select public.my_role()) in ('admin','parent','student'));
