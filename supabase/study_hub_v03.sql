@@ -38,6 +38,7 @@ create index if not exists study_folders_class on public.study_folders(class_id)
 create index if not exists study_materials_class on public.study_materials(class_id);
 alter table public.study_folders add constraint study_folders_class_family_fk foreign key (class_id,family_id) references public.study_classes(id,family_id) on delete cascade;
 alter table public.study_materials add constraint study_materials_class_family_fk foreign key (class_id,family_id) references public.study_classes(id,family_id) on delete cascade;
+grant select, insert, update, delete on public.study_classes, public.study_folders, public.study_materials to authenticated;
 alter table public.study_classes enable row level security;
 alter table public.study_folders enable row level security;
 alter table public.study_materials enable row level security;
