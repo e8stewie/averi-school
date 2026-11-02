@@ -1,0 +1,1 @@
+revoke update on public.study_guides from authenticated; grant update (title) on public.study_guides to authenticated;
