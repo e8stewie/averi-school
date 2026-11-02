@@ -13,8 +13,9 @@ Deno.serve(async (req) => {
     if (!bearer.startsWith("Bearer ")) return json({ error: "Sign in required" }, 401);
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) return json({ error: "AI service not configured" }, 503);
-    const { classId, materialIds } = await req.json();
+    const { classId, materialIds, optimizedImages = {} } = await req.json();
     if (!uuid.test(classId) || !Array.isArray(materialIds) || !materialIds.length || materialIds.length > 20 || !materialIds.every((id: unknown) => typeof id === "string" && uuid.test(id))) return json({ error: "Select 1–20 valid materials" }, 400);
+    if (optimizedImages === null || typeof optimizedImages !== "object" || Array.isArray(optimizedImages) || Object.keys(optimizedImages).length > 3) return json({ error: "Invalid optimized image selection" }, 400);
     const keys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "{}");
     const publishable = keys.default || Deno.env.get("SUPABASE_ANON_KEY");
     if (!publishable) return json({ error: "Supabase key unavailable" }, 503);
@@ -43,17 +44,20 @@ Deno.serve(async (req) => {
       } else {
         const mime = m.mime_type;
         if (!["image/png", "image/jpeg", "image/webp", "application/pdf"].includes(mime) || !m.storage_path) return json({ error: "Unsupported attachment type" }, 400);
+        const override = optimizedImages[m.id];
+        if (override !== undefined && (!mime.startsWith("image/") || typeof override !== "string" || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(override) || override.length > 4.3 * 1024 * 1024)) return json({ error: "Invalid optimized image" }, 400);
         const { data: blob, error: downloadError } = await db.storage.from("study-materials").download(m.storage_path);
         if (downloadError || !blob) return json({ error: "Unable to access one of the selected files" }, 403);
-        if (blob.size > 4 * 1024 * 1024) return json({ error: `File too large for AI processing: ${m.title}. Limit is 4 MB per file.` }, 413);
-        totalBytes += blob.size;
+        if (!override && blob.size > 4 * 1024 * 1024) return json({ error: `File too large for AI processing: ${m.title}. Limit is 4 MB per file.` }, 413);
+        const actualBytes = override ? Math.floor((override.length - "data:image/jpeg;base64,".length) * 0.75) : blob.size;
+        totalBytes += actualBytes;
         if (totalBytes > 8 * 1024 * 1024) return json({ error: "Selected files exceed the 8 MB AI processing limit" }, 413);
-        const encoded = toBase64(new Uint8Array(await blob.arrayBuffer()));
+        const encoded = override ? "" : toBase64(new Uint8Array(await blob.arrayBuffer()));
         content.push({ type: "input_text", text: heading });
         if (mime === "application/pdf") {
           content.push({ type: "input_file", filename: String(m.title).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "notes.pdf", file_data: `data:application/pdf;base64,${encoded}` });
         } else {
-          content.push({ type: "input_image", image_url: `data:${mime};base64,${encoded}`, detail: "auto" });
+          content.push({ type: "input_image", image_url: override || `data:${mime};base64,${encoded}`, detail: "auto" });
         }
       }
     }
