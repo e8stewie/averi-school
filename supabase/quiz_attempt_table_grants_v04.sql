@@ -1,0 +1,1 @@
+revoke all on public.study_quiz_attempts from authenticated; grant select on public.study_quiz_attempts to authenticated;
