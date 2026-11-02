@@ -43,7 +43,7 @@ export default function StudyHub({db,member,session}){
    for(let attempt=0;attempt<5;attempt++){
     const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
     const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Image processing unavailable');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));if(blob&&blob.size<=3*1024*1024){return new File([blob],file.name.replace(/\\.[^.]+$/,'.jpg'),{type:'image/jpeg'})}scale*=0.75;
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));if(blob&&blob.size<=3*1024*1024){return new File([blob],(filename||'study-photo').replace(/\\.[^.]+$/,'.jpg'),{type:'image/jpeg'})}scale*=0.75;
    }throw new Error('Could not optimize the image; try a smaller photo');
   }finally{bitmap.close()}
  }
