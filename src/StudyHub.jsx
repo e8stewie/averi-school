@@ -6,6 +6,7 @@ export default function StudyHub({db,member,session}){
  const [classes,setClasses]=useState([]),[folders,setFolders]=useState([]),[materials,setMaterials]=useState([]);
  const [selected,setSelected]=useState(''),[folder,setFolder]=useState(''),[newClass,setNewClass]=useState(''),[newFolder,setNewFolder]=useState('');
  const [title,setTitle]=useState(''),[body,setBody]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
+ const [guideIds,setGuideIds]=useState([]),[guide,setGuide]=useState(''),[generating,setGenerating]=useState(false);
  const canEdit=['admin','parent','student'].includes(member.role),family=member.family_id,uid=session.user.id;
  const refresh=useCallback(async()=>{
   const [a,b,c]=await Promise.all(['study_classes','study_folders','study_materials'].map(t=>db.from(t).select('*').eq('family_id',family).order('created_at',{ascending:false})));
@@ -34,17 +35,19 @@ export default function StudyHub({db,member,session}){
  }
  async function viewFile(item){const {data,error}=await db.storage.from('study-materials').createSignedUrl(item.storage_path,60);if(error)return fail(error);window.open(data.signedUrl,'_blank','noopener,noreferrer')}
  async function removeMaterial(item){if(!window.confirm('Delete this material?'))return;if(item.storage_path){const {error:storageError}=await db.storage.from('study-materials').remove([item.storage_path]);if(storageError)return fail(storageError)}const {error}=await db.from('study_materials').delete().eq('id',item.id);if(error)return fail(error);await refresh()}
+ async function generateGuide(){if(!guideIds.length)return;setGenerating(true);setError('');setMessage('');setGuide('');try{const {data,error}=await db.functions.invoke('generate-study-guide',{body:{classId:selected,materialIds:guideIds}});if(error)throw error;if(data?.error)throw new Error(data.error);setGuide(data.guide||'');}catch(e){fail(e)}finally{setGenerating(false)}}
  const visible=materials.filter(m=>m.class_id===selected&&(!folder||m.folder_id===folder));
  return <section className="study-hub">
   <article><h2>📚 Study Hub</h2><p className="muted">Organize notes, screenshots and worksheets by class. AI guides and quizzes are coming next.</p>
   {error&&<p className="warning" role="alert">{error}</p>}{message&&<p className="success" role="status">{message}</p>}
-  <div className="study-class-list">{classes.map(c=><button key={c.id} className={'subtle '+(selected===c.id?'study-selected':'')} onClick={()=>{setSelected(c.id);setFolder('')}}>{c.name}</button>)}</div>
+  <div className="study-class-list">{classes.map(c=><button key={c.id} className={'subtle '+(selected===c.id?'study-selected':'')} onClick={()=>{setSelected(c.id);setFolder('');setGuideIds([]);setGuide('')}}>{c.name}</button>)}</div>
   {canEdit&&<form onSubmit={addClass} className="study-inline"><input aria-label="New class name" placeholder="New class (e.g. Biology)" maxLength="100" value={newClass} onChange={e=>setNewClass(e.target.value)}/><button className="primary">Add class</button></form>}
   {!selected&&<p className="empty">Choose a class to view materials.</p>}
   </article>
+  {selected&&<article><h2>✨ AI Study Guide (preview)</h2><p className="muted">Select up to 20 notes from this class or folder. PDF and image reading will follow. AI-generated content may contain mistakes; check against your notes.</p><div>{visible.filter(m=>m.kind==='note').map(m=><label className="check" key={m.id}><input type="checkbox" checked={guideIds.includes(m.id)} onChange={e=>setGuideIds(ids=>e.target.checked?[...ids,m.id].slice(0,20):ids.filter(id=>id!==m.id))}/>{m.title}</label>)}</div><button className="primary" disabled={generating||!guideIds.length} onClick={generateGuide}>{generating?'Generating…':'Generate study guide'}</button>{guide&&<div className="item"><h3>Your study guide</h3><p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{guide}</p><button className="subtle" onClick={()=>navigator.clipboard.writeText(guide)}>Copy guide</button></div>}</article>}
   {selected&&<div className="grid">
-   <article><h2>Folders</h2><button className={'subtle '+(!folder?'study-selected':'')} onClick={()=>setFolder('')}>All materials</button>
-    {folders.filter(f=>f.class_id===selected).map(f=><button key={f.id} className={'subtle '+(folder===f.id?'study-selected':'')} onClick={()=>setFolder(f.id)}>📁 {f.name}</button>)}
+   <article><h2>Folders</h2><button className={'subtle '+(!folder?'study-selected':'')} onClick={()=>{setFolder('');setGuideIds([]);setGuide('')}}>All materials</button>
+    {folders.filter(f=>f.class_id===selected).map(f=><button key={f.id} className={'subtle '+(folder===f.id?'study-selected':'')} onClick={()=>{setFolder(f.id);setGuideIds([]);setGuide('')}}>📁 {f.name}</button>)}
     {canEdit&&<form onSubmit={addFolder} className="study-inline"><input aria-label="New folder name" placeholder="New unit or chapter" maxLength="100" value={newFolder} onChange={e=>setNewFolder(e.target.value)}/><button className="primary">Add folder</button></form>}
     <h3>Saved materials</h3>{visible.map(m=><div className="item" key={m.id}><b>{m.kind==='note'?'📝':'📎'} {m.title}</b>{m.kind==='note'?<p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{m.body}</p>:<button className="subtle" onClick={()=>viewFile(m)}>Open file</button>}{canEdit&&<button className="subtle" onClick={()=>removeMaterial(m)}>Delete</button>}</div>)}
     {!visible.length&&<p className="empty">No materials in this selection yet.</p>}
