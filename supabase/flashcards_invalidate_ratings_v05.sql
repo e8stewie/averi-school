@@ -1,0 +1,4 @@
+create or replace function public.clear_flashcard_progress_on_change() returns trigger language plpgsql security definer set search_path='' as $$ begin if new.cards is distinct from old.cards then delete from public.study_flashcard_progress where deck_id=new.id; end if; return new; end $$;
+drop trigger if exists clear_flashcard_progress_on_change on public.study_flashcard_decks;
+create trigger clear_flashcard_progress_on_change after update of cards on public.study_flashcard_decks for each row execute function public.clear_flashcard_progress_on_change();
+revoke all on function public.clear_flashcard_progress_on_change() from public,anon,authenticated;
