@@ -1,0 +1,1 @@
+create policy "own delete progress" on public.study_flashcard_progress for delete to authenticated using (family_id=(select public.my_family_id()) and user_id=(select auth.uid())); grant delete on public.study_flashcard_progress to authenticated;
