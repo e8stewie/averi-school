@@ -10,9 +10,11 @@ const checks=['Checked Canvas/eCampus for assignments','Checked Skyward for miss
 const day=()=>new Date().toLocaleDateString('en-CA');
 function App(){
  const [session,setSession]=useState(null),[ready,setReady]=useState(false),[member,setMember]=useState(null),[rows,setRows]=useState({assignments:[],tests:[],checkins:[],help_requests:[],submission_verifications:[]});
- const [tab,setTab]=useState('today'),[error,setError]=useState(''),[notice,setNotice]=useState(''),[authMode,setAuthMode]=useState('signin'),[email,setEmail]=useState(''),[password,setPassword]=useState('');
+ const [tab,setTab]=useState(()=>{try{return sessionStorage.getItem('averi:main-tab')||'today'}catch{return 'today'}}),[error,setError]=useState(''),[notice,setNotice]=useState(''),[authMode,setAuthMode]=useState('signin'),[email,setEmail]=useState(''),[password,setPassword]=useState('');
  const [task,setTask]=useState({title:'',subject:'',due:day()}),[test,setTest]=useState({title:'',subject:'',date:day()}),[answers,setAnswers]=useState({}),[minutes,setMinutes]=useState(20),[help,setHelp]=useState('');
  const student=member?.role==='student',family=member?.family_id;
+ useEffect(()=>{if(!session)return;try{const saved=sessionStorage.getItem('averi:main-tab:'+session.user.id);if(saved&&['today','overview','assignments','tests','help','study'].includes(saved))setTab(saved)}catch{}},[session?.user?.id]);
+ useEffect(()=>{if(!session)return;try{sessionStorage.setItem('averi:main-tab:'+session.user.id,tab);sessionStorage.setItem('averi:main-tab',tab)}catch{}},[tab,session?.user?.id]);
  useEffect(()=>{if(!db){setReady(true);return}db.auth.getSession().then(({data})=>{setSession(data.session);setReady(true)});const {data:{subscription}}=db.auth.onAuthStateChange((_event,s)=>setSession(s));return()=>subscription.unsubscribe()},[]);
  useEffect(()=>{if(!session){setMember(null);return}let alive=true;db.from('memberships').select('*').eq('user_id',session.user.id).maybeSingle().then(({data,error})=>{if(alive){setMember(data);if(error)setError(error.message)}});return()=>{alive=false}},[session]);
  async function refresh(){if(!family)return;const names=Object.keys(rows);const results=await Promise.all(names.map(n=>db.from(n).select('*').eq('family_id',family)));const bad=results.find(r=>r.error);if(bad){setError(bad.error.message);return}setRows(Object.fromEntries(names.map((n,i)=>[n,results[i].data||[]])))}
