@@ -44,7 +44,7 @@ Deno.serve(async req=>{
    if(!ai.ok){const failure=await ai.text();console.error("quiz_ai_http",ai.status,failure.slice(0,900));if(attempt===1)throw new Error("AI quiz generation failed");continue}
    const result=await ai.json();
    const raw=(result.output||[]).flatMap((x:any)=>x.content||[]).filter((x:any)=>x.type==="output_text").map((x:any)=>x.text).join("");
-   let parsed:any;try{const start=raw.indexOf('{'),end=raw.lastIndexOf('}');if(start<0||end<start)throw new Error('No JSON object');const body=raw.slice(start,end+1);try{parsed=JSON.parse(body)}catch{parsed=JSON.parse(body.replace(/\\\\(?!["\\\\/bfnrtu])/g,'\\\\\\\\'))}}catch{console.warn('quiz_ai_invalid_json',{batch:offset,attempt,status:result.status,incomplete:result.incomplete_details,chars:raw.length});continue}
+   let parsed:any;try{const start=raw.indexOf('{'),end=raw.lastIndexOf('}');if(start<0||end<start)throw new Error('No JSON object');const body=raw.slice(start,end+1);try{parsed=JSON.parse(body)}catch{parsed=JSON.parse(body.replace(/\\(?!["\\/bfnrtu])/g,'\\\\'))}}catch{console.warn('quiz_ai_invalid_json',{batch:offset,attempt,status:result.status,incomplete:result.incomplete_details,chars:raw.length});continue}
    const questions=parsed?.questions;
    if(Array.isArray(questions)&&questions.length===count&&questions.every(isValid))return questions.map((q:any)=>({...q,option_explanations:Array.isArray(q.option_explanations)&&q.option_explanations.length===4?q.option_explanations.map((e:any)=>String(e)):[]}));
    console.warn("quiz_ai_invalid_shape",{batch:offset,attempt,count:questions?.length});
