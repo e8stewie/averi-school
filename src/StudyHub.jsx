@@ -5,9 +5,9 @@ import Flashcards from './Flashcards.jsx';
 const ACCEPT=['image/png','image/jpeg','image/webp','application/pdf'];
 const MAX_BYTES=10*1024*1024;
 export default function StudyHub({db,member,session}){
- const [activeTab,setActiveTab]=useState('notes');
+ const [activeTab,setActiveTab]=useState(()=>{try{const t=sessionStorage.getItem('averi:hub-section:'+session.user.id);return ['notes','guides','flashcards','quizzes'].includes(t)?t:'notes'}catch{return 'notes'}});
  const [classes,setClasses]=useState([]),[folders,setFolders]=useState([]),[materials,setMaterials]=useState([]);
- const [selected,setSelected]=useState(''),[folder,setFolder]=useState(''),[newClass,setNewClass]=useState(''),[newFolder,setNewFolder]=useState('');
+ const [selected,setSelected]=useState(()=>{try{return sessionStorage.getItem('averi:hub-class:'+session.user.id)||''}catch{return ''}}),[folder,setFolder]=useState(()=>{try{return sessionStorage.getItem('averi:hub-folder:'+session.user.id)||''}catch{return ''}}),[newClass,setNewClass]=useState(''),[newFolder,setNewFolder]=useState('');
  const [title,setTitle]=useState(''),[body,setBody]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('');
  const [guideIds,setGuideIds]=useState([]),[guide,setGuide]=useState(''),[generating,setGenerating]=useState(false),[guides,setGuides]=useState([]),[activeGuide,setActiveGuide]=useState(''),[guideExpanded,setGuideExpanded]=useState(false);
  const canEdit=['admin','parent','student'].includes(member.role),family=member.family_id,uid=session.user.id;
@@ -17,6 +17,9 @@ export default function StudyHub({db,member,session}){
   setClasses(a.data||[]);setFolders(b.data||[]);setMaterials(c.data||[]);
  },[db,family]);
  useEffect(()=>{refresh()},[refresh]);
+ useEffect(()=>{try{sessionStorage.setItem('averi:hub-section:'+uid,activeTab);sessionStorage.setItem('averi:hub-class:'+uid,selected);sessionStorage.setItem('averi:hub-folder:'+uid,folder)}catch{}},[uid,activeTab,selected,folder]);
+ useEffect(()=>{if(classes.length&&selected&&!classes.some(c=>c.id===selected)){setSelected('');setFolder('')}},[classes,selected]);
+ useEffect(()=>{if(folder&&folders.length&&!folders.some(f=>f.id===folder&&f.class_id===selected))setFolder('')},[folders,folder,selected]);
  const refreshGuides=useCallback(async()=>{if(!selected){setGuides([]);return}const {data,error}=await db.from('study_guides').select('*').eq('family_id',family).eq('class_id',selected).order('created_at',{ascending:false});if(error)setError(error.message);else setGuides(data||[])},[db,family,selected]);
  useEffect(()=>{refreshGuides()},[refreshGuides]);
  const fail=e=>{setError(e.message||String(e));setMessage('')};
@@ -58,7 +61,7 @@ export default function StudyHub({db,member,session}){
 
   <article><h2>📚 Study Hub</h2><p className="muted">Select a class, then choose a study tool from the left navigation.</p>
   {error&&<p className="warning" role="alert">{error}</p>}{message&&<p className="success" role="status">{message}</p>}
-  <div className="study-class-list">{classes.map(c=><button key={c.id} className={'subtle '+(selected===c.id?'study-selected':'')} onClick={()=>{setSelected(c.id);setActiveTab('notes');setFolder('');setGuideIds([]);setGuide('');setActiveGuide('');setGuideExpanded(false)}}>{c.name}</button>)}</div>
+  <div className="study-class-list">{classes.map(c=><button key={c.id} className={'subtle '+(selected===c.id?'study-selected':'')} onClick={()=>{setSelected(c.id);setFolder('');setGuideIds([]);setGuide('');setActiveGuide('');setGuideExpanded(false)}}>{c.name}</button>)}</div>
   {canEdit&&<form onSubmit={addClass} className="study-inline"><input aria-label="New class name" placeholder="New class (e.g. Biology)" maxLength="100" value={newClass} onChange={e=>setNewClass(e.target.value)}/><button className="primary">Add class</button></form>}
   {!selected&&<p className="empty">Choose a class to view materials.</p>}
   </article>
